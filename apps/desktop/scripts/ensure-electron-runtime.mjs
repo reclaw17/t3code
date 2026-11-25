@@ -4,6 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 import * as NodeChildProcess from "node:child_process";
+import * as NodeCrypto from "node:crypto";
 
 const require = NodeModule.createRequire(import.meta.url);
 // oxlint-disable-next-line t3code/no-global-process-runtime -- Standalone repair script has no Effect runtime.
@@ -135,11 +136,26 @@ function installFromElectronCache(electronDir) {
   return false;
 }
 
+// The package lists every release archive's SHA-256, so a direct download is held to the
+// same checksum as the installer above.
+function expectedChecksum(electronDir, fileName) {
+  const checksums = JSON.parse(
+    NodeFS.readFileSync(NodePath.join(electronDir, "checksums.json"), "utf8"),
+  );
+  const checksum = checksums[fileName];
+  if (typeof checksum !== "string") {
+    throw new Error(`electron lists no checksum for ${fileName}; refusing to trust a download`);
+  }
+  return checksum;
+}
+
 function downloadElectronRuntime(electronDir, version) {
   const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-electron-"));
-  const zipPath = NodePath.join(tempDir, `electron-v${version}-${hostPlatform}-${hostArch}.zip`);
+  const fileName = `electron-v${version}-${hostPlatform}-${hostArch}.zip`;
+  const zipPath = NodePath.join(tempDir, fileName);
 
   try {
+    const checksum = expectedChecksum(electronDir, fileName);
     runChecked("curl", [
       "-fsSL",
       "--retry",
@@ -149,10 +165,16 @@ function downloadElectronRuntime(electronDir, version) {
       "30",
       "--max-time",
       "300",
-      `https://github.com/electron/electron/releases/download/v${version}/electron-v${version}-${hostPlatform}-${hostArch}.zip`,
+      `https://github.com/electron/electron/releases/download/v${version}/${fileName}`,
       "-o",
       zipPath,
     ]);
+    const digest = NodeCrypto.createHash("sha256")
+      .update(NodeFS.readFileSync(zipPath))
+      .digest("hex");
+    if (digest !== checksum) {
+      throw new Error(`${fileName} does not match the checksum electron lists for it (${digest})`);
+    }
     if (hostPlatform === "darwin") {
       runChecked("ditto", ["-x", "-k", zipPath, NodePath.join(electronDir, "dist")]);
     } else {

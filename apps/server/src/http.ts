@@ -407,7 +407,11 @@ export const layerServerEnvironmentHttpApi = HttpApiBuilder.group(
       "descriptor",
       Effect.fn("environment.metadata.descriptor")(function* (args) {
         yield* annotateEnvironmentRequest(args.endpoint.name);
-        return yield* serverEnvironment.getDescriptor;
+        const descriptor = yield* serverEnvironment.getDescriptor;
+        // Anyone who reaches the port reads this response, and the install's paths name the OS
+        // user. Paired clients read them from the server config instead.
+        const { serverInstallation, ...capabilities } = descriptor.capabilities;
+        return serverInstallation === undefined ? descriptor : { ...descriptor, capabilities };
       }, traceRelayRequest),
     );
   }),
