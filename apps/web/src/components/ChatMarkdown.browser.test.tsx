@@ -369,23 +369,22 @@ it("highlights a code block's own source when an earlier block of the same lengt
 });
 
 describe("ChatMarkdown favicon privacy", () => {
-  it("suppresses private link images while preserving public links across updates", async () => {
+  it("loads no favicon image for any link and shows an icon instead", async () => {
     setup();
     const markdown = (url: string) => <ChatMarkdown cwd="/tmp/project" text={`[Link](${url})`} />;
     await using screen = await render(markdown("https://example.com"));
     const { container, rerender } = screen;
-    expect([...container.querySelectorAll("img")].map((image) => image.src)).toEqual([
-      "https://www.google.com/s2/favicons?domain=example.com&sz=32",
-    ]);
+    const expectIconWithoutImage = () => {
+      expect(container.querySelectorAll("img")).toHaveLength(0);
+      expect(container.querySelector("a svg")).not.toBeNull();
+    };
+    expectIconWithoutImage();
     for (const url of ["http://192.168.1.10:8080", "http://localhost:3000", "http://home.arpa"]) {
       await rerender(markdown(url));
-      expect(container.querySelectorAll("img")).toHaveLength(0);
+      expectIconWithoutImage();
     }
-    await rerender(markdown("https://example.com"));
-    expect(container.querySelectorAll("img")).toHaveLength(1);
     await rerender(markdown("https://github.com/pingdotgg/t3code/pull/1"));
-    expect(container.querySelectorAll("img")).toHaveLength(0);
-    expect(container.querySelector("a svg")).not.toBeNull();
+    expectIconWithoutImage();
   });
 });
 

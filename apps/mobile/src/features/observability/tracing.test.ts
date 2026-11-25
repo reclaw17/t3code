@@ -32,7 +32,7 @@ const layerTracingTo = (fetchFn: typeof fetch) =>
     },
   ).pipe(Layer.provide(layerRemoteHttpClient(fetchFn)));
 
-it.effect.each([false, true])("gates relay sends and preserves typed failures (%s)", (enabled) => {
+it.effect.each([false, true])("sends nothing and preserves typed failures (%s)", (enabled) => {
   setConnectionTracesEnabled(enabled);
   const fetchFn = vi.fn<typeof fetch>(async () => new Response(null, { status: 202 }));
   const layerTracing = layerTracingTo(fetchFn);
@@ -55,14 +55,6 @@ it.effect.each([false, true])("gates relay sends and preserves typed failures (%
 
   return Layer.build(layerTracedApplication).pipe(
     Effect.scoped,
-    Effect.andThen(
-      Effect.sync(() => {
-        expect(fetchFn).toHaveBeenCalledTimes(Number(enabled));
-        if (!enabled) return;
-        expect(new TextDecoder().decode(fetchFn.mock.calls[0]?.[1]?.body as Uint8Array)).toContain(
-          "mobile.test.failed-span",
-        );
-      }),
-    ),
+    Effect.andThen(Effect.sync(() => expect(fetchFn).toHaveBeenCalledTimes(0))),
   );
 });
